@@ -1,11 +1,10 @@
 const router = require("express").Router();
-const { json } = require("express");
 const pool = require("../db");
 const bcrypt = require("bcrypt");
 const jwtGenerator = require("../utils/jwtGenerator");
-const { JsonWebTokenError } = require("jsonwebtoken");
+const validInfo = require("../middleware/validInfo");
 
-router.post("/register", async (req, res) => {
+router.post("/register", validInfo, async (req, res) => {
   try {
     const { name, email, password } = req.body;
     const user = await pool.query("SELECT * FROM users WHERE user_email=$1", [
@@ -27,10 +26,34 @@ router.post("/register", async (req, res) => {
     );
 
     const token = jwtGenerator(newUser.rows[0].user_id);
-    res.json({ token: token });
+    res.json({ token });
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
+  }
+});
+
+router.post("/login", validInfo, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await pool.query("SELECT * FROM users WHERE user_email=$1", [
+      email,
+    ]);
+    if (user.rowCount == 0) {
+      return res.status(401).send("Password Or Email incorrect");
+    }
+    const validPassword = await bcrypt.compare(
+      password,
+      user.rows[0].user_password
+    );
+    console.log(validPassword);
+    if (!validPassword) {
+      return res.status(401).send("Password Or Email incorrect");
+    }
+    const token = jwtGenerator(user.rows[0].user_id);
+    res.json({ token });
+  } catch (err) {
+    res.status(500).send("Internal Error");
   }
 });
 
