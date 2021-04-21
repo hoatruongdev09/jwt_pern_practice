@@ -3,6 +3,8 @@ const pool = require("../db");
 const bcrypt = require("bcrypt");
 const jwtGenerator = require("../utils/jwtGenerator");
 const validInfo = require("../middleware/validInfo");
+const authorization = require("../middleware/authorization");
+const error = require("../error/error");
 
 router.post("/register", validInfo, async (req, res) => {
   try {
@@ -12,7 +14,7 @@ router.post("/register", validInfo, async (req, res) => {
     ]);
 
     if (user.rowCount !== 0) {
-      res.status(401).send("User already exist");
+      return error.unauthorize(res, "User already exist");
     }
 
     const saltRound = 10;
@@ -26,10 +28,10 @@ router.post("/register", validInfo, async (req, res) => {
     );
 
     const token = jwtGenerator(newUser.rows[0].user_id);
-    res.json({ token });
+    return res.json({ token });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server Error");
+    console.error("error: ", err);
+    return error.internalServerError("Server Error");
   }
 });
 
@@ -40,7 +42,7 @@ router.post("/login", validInfo, async (req, res) => {
       email,
     ]);
     if (user.rowCount == 0) {
-      return res.status(401).send("Password Or Email incorrect");
+      return error.unauthorize(res, "Password Or Email incorrect");
     }
     const validPassword = await bcrypt.compare(
       password,
@@ -48,13 +50,20 @@ router.post("/login", validInfo, async (req, res) => {
     );
     console.log(validPassword);
     if (!validPassword) {
-      return res.status(401).send("Password Or Email incorrect");
+      return error.unauthorize(res, "Password Or Email incorrect");
     }
     const token = jwtGenerator(user.rows[0].user_id);
     res.json({ token });
   } catch (err) {
-    res.status(500).send("Internal Error");
+    error.internalServerError(res, "Internal Error");
   }
 });
 
+router.get("/is-verify", authorization, async (req, res) => {
+  try {
+    res.json(true);
+  } catch (error) {
+    error.internalServerError(res, "Internal Error");
+  }
+});
 module.exports = router;
